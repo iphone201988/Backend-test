@@ -15,15 +15,20 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    publicProfileUrl: {
+    age:{
+      type:Number,
+    },
+    publicProfile: {
       type: String,
-      default: "/images/default.png",
     },
     role: {
       type: String,
       enum: ["USER", "ADMIN"],
       default: "USER",
     },
+    userId:{
+      type: Schema.Types.ObjectId, ref:"user"
+    }
   },
   { timestamps: true }
 );

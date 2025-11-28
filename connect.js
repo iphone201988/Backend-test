@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
-export async function connectMongoDB(url) {
+export  function connectMongoDB(url) {
   return mongoose.connect(url).then(() => {
-    "MongoDB Connected";
+    console.log("MongoDB Connected");
   });
 }
