@@ -26,8 +26,14 @@ const userSchema = new Schema(
       enum: ["USER", "ADMIN"],
       default: "USER",
     },
-    userId:{
-      type: Schema.Types.ObjectId, ref:"user"
+    resetPasswordOtp:{
+      type:String,
+    },
+    resetPasswordOtpExpires:{
+      type:Date,
+    },
+    otpVerify:{
+      type:Boolean,
     }
   },
   { timestamps: true }

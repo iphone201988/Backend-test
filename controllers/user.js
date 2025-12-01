@@ -1,6 +1,8 @@
 import { User } from "../models/user.js";
 import JWT, { decode } from "jsonwebtoken";
 import bcrypt from "bcrypt";
+// import { registerSchema } from "../middleware/validation.js";
+import { sendEmail } from "../utils/sendmail.js";
 
 function validateEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -8,37 +10,8 @@ function validateEmail(email) {
 }
 
 export async function registerUser(req, res) {
-  const { name, email, password,age, role } = req.body;
+  const { name, email, password, age, role } = req.body;
   try {
-    if (role != "USER" && role != "ADMIN") {
-      return res.status(400).json({
-        message: "Invalid Role",
-      });
-    }
-    if (!name || !email || !password) {
-      return res.status(400).send({
-        message: "Name,Email and Password is required",
-      });
-    }
-
-    if (typeof name != "string" && typeof password != "string") {
-      return res.status(400).send({
-        message: "Enter a string",
-      });
-    }
-
-    if (isNaN(Number(age))) {
-      return res.status(400).send({
-        message: "enter age in number",
-      });
-    }
-
-    if (validateEmail(email) == false) {
-      return res.status(400).send({
-        message: "Email is invalid",
-      });
-    }
-
     let publicProfile = null;
     if (req.file) {
       publicProfile = `image/${req.file.filename}`;
@@ -75,11 +48,13 @@ export async function userLogIn(req, res) {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
+
     if (!user) {
       return res.status(400).json({
-        message: "user not found",
+        message: "User not found",
       });
     }
+
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
       return res.status(400).json({
@@ -113,40 +88,38 @@ export async function getAllUser(req, res) {
         message: "you are not a admin",
       });
     }
-    const {name,minAge,maxAge} = req.query
-    let filter ={}
+    const { name, minAge, maxAge } = req.query;
+    let filter = {};
 
     if (name) {
       filter.name = {
         $regex: `^${name}`,
-        $options: "i", 
+        $options: "i",
       };
     }
 
-    if(minAge || maxAge){
-      filter.age ={}
-      if (minAge) filter.age.$gte = Number(minAge); 
+    if (minAge || maxAge) {
+      filter.age = {};
+      if (minAge) filter.age.$gte = Number(minAge);
       if (maxAge) filter.age.$lte = Number(maxAge);
     }
 
-    let page = parseInt(req.query.page) || 1
-    let limit = parseInt(req.query.limit) || 10
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 10;
 
-    const skip = (page -1) * limit
+    const skip = (page - 1) * limit;
 
-    const totalUser = await User.countDocuments(filter)
+    const totalUser = await User.countDocuments(filter);
 
-    const user = await User.find(filter)
-    .skip(skip)
-    .limit(limit)
+    const user = await User.find(filter).skip(skip).limit(limit);
 
-    const totalPages = Math.ceil(totalUser/ limit)
+    const totalPages = Math.ceil(totalUser / limit);
 
     return res.status(200).json({
       message: "All users Fetched",
       totalUser,
       totalPages,
-      currentPage:page,
+      currentPage: page,
       limit,
       user,
     });
@@ -181,7 +154,7 @@ export async function getUser(req, res) {
 
 export async function updateUser(req, res) {
   try {
-    const { name, email,age, targetUserId } = req.body;
+    const { name, email, age, targetUserId } = req.body;
 
     const userId = req.user.id;
     const userRole = req.user.role;
@@ -196,12 +169,6 @@ export async function updateUser(req, res) {
     if (!name || !email) {
       return res.status(400).send({
         message: "Name and Email is required",
-      });
-    }
-
-    if (validateEmail(email) == false) {
-      return res.status(400).send({
-        message: "Email is invalid",
       });
     }
 
@@ -223,6 +190,7 @@ export async function updateUser(req, res) {
     if (age) {
       user.age = age;
     }
+
     await user.save();
 
     const userObj = user.toObject();
@@ -252,6 +220,107 @@ export async function deleteUser(req, res) {
     return res.status(400).json({
       message: "invalid user",
       error: error.message,
+    });
+  }
+}
+
+export async function forgetPassword(req, res) {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        message: "Account is not existed",
+      });
+    }
+    const otp = Math.floor(100000 + Math.random() * 90000).toString();
+    user.resetPasswordOtp = otp;
+    user.resetPasswordOtpExpires = Date.now() + 15 * 60 * 1000;
+    await user.save();
+
+    const message = `Your password reset OTP is: ${otp}\nThis OTP is valid for 15 minutes.`;
+    await sendEmail({
+      to: user.email,
+      subject: "Password Reset OTP",
+      text: message,
+    });
+
+    return res.status(200).json({
+      message: "If this email is registered, an OTP has been sent",
+    });
+  } catch (error) {
+    console.error("forgotPassword error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function verifyOtp(req, res) {
+  try {
+    const { otp } = req.body;
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+
+    if (user.resetPasswordOtpExpires < Date.now()) {
+      return res.status(400).json({
+        message: "OTP has expired",
+      });
+    }
+
+    if (user.resetPasswordOtp !== otp) {
+      return res.status(400).json({
+        message: "Invalid OTP",
+      });
+    }
+
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordOtpExpires = undefined;
+    user.otpVerify = true;
+    await user.save();
+
+    return res.status(200).json({
+      message: "OTP verified",
+      otpVerify:user.otpVerify
+    });
+  } catch (error) {
+    console.error("resetPassword error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function resetPassword(req, res) {
+  try {
+    // console.log("dd")
+    const { email, newPassword } = req.body;
+    // console.log(email)
+    const user = await User.findOne({ email });
+    // console.log(user)
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid request",
+      });
+    }
+    console.log(user.otpVerify)
+    if (!user.otpVerify) {
+      return res.status(400).json({
+        message: "verify first",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 8);
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    console.error("resetPassword error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
     });
   }
 }
