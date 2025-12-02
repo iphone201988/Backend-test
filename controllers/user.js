@@ -258,10 +258,14 @@ export async function forgetPassword(req, res) {
 
 export async function verifyOtp(req, res) {
   try {
-    const { otp } = req.body;
-    const userId = req.user.id;
-    const user = await User.findById(userId);
-
+    const { email,otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required" });
+    }
+    const user = await User.findOne({email});
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
     if (user.resetPasswordOtpExpires < Date.now()) {
       return res.status(400).json({
         message: "OTP has expired",

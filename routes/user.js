@@ -19,7 +19,7 @@ router.put('/updateUser',authorization,validateRegister(updateUserSchema),update
 router.delete('/deleteUser',authorization,deleteUser)
 
 router.post('/forgetPassword',validateRegister(forgetPasswordSchema),forgetPassword)
-router.post('/verifyOtp',authorization,verifyOtp)
+router.post('/verifyOtp',verifyOtp)
 router.post('/resetPassword',validateRegister(resetPasswordSchema),resetPassword)
 
 export default router 
