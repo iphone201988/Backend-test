@@ -1,6 +1,8 @@
 import express from "express";
 import router from "./routes/user.js";
 import blogRouter from "./routes/blog.js";
+import productRouter from "./routes/product.js";
+import accessorieRouter from "./routes/accessorie.js"
 import { connectMongoDB } from "./connect.js";
 import "dotenv/config"
 import cors from "cors"
@@ -20,6 +22,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/user',router)
 app.use('/blog',blogRouter)
+app.use('/product',productRouter)
+app.use('/accessorie',accessorieRouter)
 
 app.listen(PORT,()=>{
     console.log(`http://localhost:${PORT}`)
